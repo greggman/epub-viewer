@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ePub viewer</title>
+    <style>
+      html, body {
+        margin: 0;
+        height: 100%;
+        font-size: large;
+      }
+      #content {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      #area {
+        flex: 1 1 auto;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+      }
+      #ui {
+        flex: 0 0 auto;
+        display: flex;
+        justify-content: center;
+      }
+      #prev {
+        text-align: right;
+      }
+      #ui a {
+        flex: 0 0 50%;
+      }
+      #drop {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .dragging {
+        background: lightseagreen;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="content">
+      <div id="area"></div>
+      <div id="ui">
+        <a id="prev" href="#prev" class="navlink">...</a>
+        <div>&nbsp; </div>
+        <a id="next" href="#next" class="navlink">...</a>
+      </div>
+    </div>
+    <div id="drop"><div>drag and drop an .epub file here</div></div>
+  </body>
+  <script src="js/jszip.min.js"></script>
+  <script src="js/epub.min.js"></script>
+  <script>
+const areaElem = document.querySelector('#area');
+const dropElem = document.querySelector('#drop');
+const contentElem = document.querySelector('#content');
+
+let book;
+let rendition = {
+  next() {},
+  prev() {},
+  destroy() {},
+};
+
+const next = document.getElementById("next");
+next.addEventListener("click", function(e){
+  e.preventDefault();
+  rendition.next();
+}, false);
+
+const prev = document.getElementById("prev");
+prev.addEventListener("click", function(e){
+  e.preventDefault();
+  rendition.prev();
+}, false);
+
+async function loadFile(file) {
+  dropElem.style.display = 'none';
+  areaElem.style.display = '';
+  rendition.destroy();
+  if (book) {
+    book.destroy();
+  }
+  book = undefined;
+
+  const buffer = await file.arrayBuffer();
+  book = ePub(buffer);
+  rendition = book.renderTo(
+    "area", {
+      //method: "continuous",
+      flow: "scrolled-doc",
+      width: "100%",
+      height: "100%",
+    });
+  rendition.display();
+
+  rendition.on("rendered", function(section) {
+    const nextSection = section.next();
+    const prevSection = section.prev();
+
+    if(nextSection) {
+      const nextNav = book.navigation.get(nextSection.href);
+      const nextLabel = nextNav ? nextNav.label : "next";
+      next.textContent = `${nextLabel}  »`;
+    } else {
+      next.textContent = '';
+    }
+
+    if(prevSection) {
+      const prevNav = book.navigation.get(prevSection.href);
+      const prevLabel = prevNav ? prevNav.label : "previous";
+      prev.textContent = `« ${prevLabel}`;
+    } else {
+      prev.textContent = "";
+    }
+
+  });
+
+}
+
+function getFirstFile(ev) {
+  if (ev.dataTransfer.items) {
+    const items = [...ev.dataTransfer.items].filter(item => item.kind === 'file');
+    if (items.length) {
+      return items[0].getAsFile();
+    }
+  } else {
+    return ev.dataTransfer.files[0];
+  }
+}
+
+function dropHandler(ev) {
+  ev.preventDefault();
+  dropElem.classList.remove('dragging');
+
+  const file = getFirstFile(ev);
+  if (file) {
+    loadFile(file);
+  }
+}
+
+function dragoverHandler(ev) {
+  console.log('dragover');
+  ev.preventDefault();
+}
+
+function dragenterHandler(ev) {
+  dropElem.classList.add('dragging');
+  dropElem.style.display = '';
+}
+
+function dragleaveHandler(ev) {
+  dropElem.classList.remove('dragging');
+  dropElem.style.display = book ? 'none' : '';
+  areaElem.style.display = '';
+}
+
+dropElem.addEventListener('drop', dropHandler);
+dropElem.addEventListener('dragover', dragoverHandler);
+dropElem.addEventListener('dragenter', dragenterHandler);
+dropElem.addEventListener('dragleave', dragleaveHandler);
+
+function bookDragEnterHandler(ev) {
+  ev.preventDefault();
+  console.log('content dragenter')
+  areaElem.style.display = 'none';
+  dropElem.style.display = '';
+}
+contentElem.addEventListener('dragenter', bookDragEnterHandler);
+document.addEventListener('dragenter', bookDragEnterHandler);
+window.addEventListener('dragenter', bookDragEnterHandler);
+
+
+  </script>
+</html>
